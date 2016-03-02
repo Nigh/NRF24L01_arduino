@@ -196,7 +196,7 @@ void loop()
 	static const uint8_t chRf[] = {2, 26, 80};
 	static const uint8_t chLe[] = {37, 38, 39};
 	uint8_t i, L, ch = 0;
-	uint8_t _,buf[32];
+	uint8_t offset,_,buf[32];
 
 	Serial.begin(115200);
 	Serial.println("init start");
@@ -228,17 +228,22 @@ void loop()
 	delay(1);
 	Serial.println("init finish");
 	_ = 0;
+	offset = 0;
 	while(1){
         // float h = 1.234;
         // float t = 3.141;
         _++;
+        if(_>10){
+        	offset++;
+        	_=0;
+        }
 		
 		L = 0;
 		
 		buf[L++] = 0x42;	//PDU type, given address is random
         buf[L++] = 0x11+3;	//17 bytes of payload
 		
-		buf[L++] = MY_MAC_0;
+		buf[L++] = MY_MAC_0+offset;
 		buf[L++] = MY_MAC_1;
 		buf[L++] = MY_MAC_2;
 		buf[L++] = MY_MAC_3;
@@ -286,12 +291,6 @@ void loop()
         digitalWrite(PIN_CE, HIGH); // sbi(PORTB, PIN_CE);	 //do tx
 		delay(10);
         digitalWrite(PIN_CE, LOW); // cbi(PORTB, PIN_CE);	(in preparation of switching to RX quickly)
-  //       if(_<16)
-		// 	Serial.print("s ");
-		// else{
-		// 	Serial.print("\ns ");
-		// 	_=0;
-		// }
 		delay(1);
 	}
 }
