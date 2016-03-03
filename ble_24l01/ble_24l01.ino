@@ -123,11 +123,12 @@ void btLeCrc(const uint8_t *data, uint8_t len, uint8_t *dst)
 	}
 }
 
-void btLeWhiten(uint8_t* data, uint8_t len, uint8_t whitenCoeff){
+void btLeWhiten(uint8_t *data, uint8_t len, uint8_t whitenCoeff)
+{
 	uint8_t  m;
-	while(len--){
-		for(m = 1; m; m <<= 1){
-			if(whitenCoeff & 0x80){
+	while (len--) {
+		for (m = 1; m; m <<= 1) {
+			if (whitenCoeff & 0x80) {
 				whitenCoeff ^= 0x11;
 				(*data) ^= m;
 			}
@@ -137,18 +138,20 @@ void btLeWhiten(uint8_t* data, uint8_t len, uint8_t whitenCoeff){
 	}
 }
 
-inline uint8_t btLeWhitenStart(uint8_t chan){
+inline uint8_t btLeWhitenStart(uint8_t chan)
+{
 	//the value we actually use is what BT'd use left shifted one...makes our life easier
-	return swapbits(chan) | 2;	
+	return swapbits(chan) | 2;
 }
 
-void btLePacketEncode(uint8_t* packet, uint8_t len, uint8_t chan){
+void btLePacketEncode(uint8_t *packet, uint8_t len, uint8_t chan)
+{
 	//length is of packet, including crc. pre-populate crc in packet with initial crc value!
 	uint8_t i, dataLen = len - 3;
 	btLeCrc(packet, dataLen, packet + dataLen);
-	for(i = 0; i < 3; i++, dataLen++) packet[dataLen] = swapbits(packet[dataLen]);
+	for (i = 0; i < 3; i++, dataLen++) packet[dataLen] = swapbits(packet[dataLen]);
 	btLeWhiten(packet, len, btLeWhitenStart(chan));
-	for(i = 0; i < len; i++) packet[i] = swapbits(packet[i]);
+	for (i = 0; i < len; i++) packet[i] = swapbits(packet[i]);
 }
 
 uint8_t swapbits(uint8_t a)
@@ -196,16 +199,18 @@ void loop()
 	static const uint8_t chRf[] = {2, 26, 80};
 	static const uint8_t chLe[] = {37, 38, 39};
 	uint8_t i, L, ch = 0;
-	uint8_t offset,_,buf[32];
+	uint8_t offset, offset2, _, buf[32];
+	char num[3] = {'0', '0', '0'};
 
 	Serial.begin(115200);
 	Serial.println("init start");
+	randomSeed(micros());
 	delay(10);
 	digitalWrite(PIN_CE, 0);
 	nrf_cmd(0x20, 0x12);	//on, no crc, int on RX/TX done
-	_=nrf_read(0x00);
+	_ = nrf_read(0x00);
 	Serial.print("NRF CONFIG:");
-	Serial.println(_,HEX);
+	Serial.println(_, HEX);
 	nrf_cmd(0x21, 0x00);	//no auto-acknowledge
 	nrf_cmd(0x22, 0x00);	//no RX
 	nrf_cmd(0x23, 0x02);	//5-byte address
@@ -229,68 +234,83 @@ void loop()
 	Serial.println("init finish");
 	_ = 0;
 	offset = 0;
-	while(1){
-        // float h = 1.234;
-        // float t = 3.141;
-        _++;
-        if(_>10){
-        	offset++;
-        	_=0;
-        }
-		
+	offset2 = 0;
+	while (1) {
+		_++;
+		if (_ > 8) {
+			offset++;
+			offset2 += 7;
+			_ = 0;
+			num[0] += 1;
+			if (num[0] > '9') {
+				num[0] = '0'; num[1] += 1;
+			}
+			if (num[1] > '9') {
+				num[1] = '0'; num[2] += 1;
+			}
+			if (num[2] > '9') {
+				num[2] = '0';
+			}
+		}
+
 		L = 0;
-		
+
 		buf[L++] = 0x42;	//PDU type, given address is random
-        buf[L++] = 0x11+3;	//17 bytes of payload
-		
-		buf[L++] = MY_MAC_0+offset;
-		buf[L++] = MY_MAC_1;
+		buf[L++] = 0x11 + 7;	//17 bytes of payload
+
+		buf[L++] = MY_MAC_0 + offset;
+		buf[L++] = MY_MAC_1 + offset2;
 		buf[L++] = MY_MAC_2;
 		buf[L++] = MY_MAC_3;
 		buf[L++] = MY_MAC_4;
 		buf[L++] = MY_MAC_5;
-		
+
 		buf[L++] = 2;		//flags (LE-only, limited discovery mode)
 		buf[L++] = 0x01;
 		buf[L++] = 0x05;
-		
-		buf[L++] = 7+3;// + 8;
+
+		buf[L++] = 7 + 7; // + 8;
 		buf[L++] = 0x08;
 
-		buf[L++] = '_';
+		buf[L++] = random(30, 128);
 		buf[L++] = 'B';
 		buf[L++] = 'L';
 		buf[L++] = 'E';
 		buf[L++] = '_';
 		buf[L++] = 'P';
 
-		buf[L++] = 'l';
-		buf[L++] = 'u';
-		buf[L++] = 's';
+		buf[L++] = 'L';
+		buf[L++] = 'U';
+		buf[L++] = 'S';
+
+		buf[L++] = '_';
+		buf[L++] = num[2];
+		buf[L++] = num[1];
+		buf[L++] = num[0];
 
 		buf[L++] = 0x55;	//CRC start value: 0x555555
 		buf[L++] = 0x55;
 		buf[L++] = 0x55;
-		
-		if(++ch == sizeof(chRf)) ch = 0;
-		
+
+		if (++ch == sizeof(chRf)) ch = 0;
+
 		nrf_cmd(0x25, chRf[ch]);
 		nrf_cmd(0x27, 0x6E);	//clear flags
 
 		btLePacketEncode(buf, L, chLe[ch]);
-		
+
 		nrf_simplebyte(0xE2); //Clear RX Fifo
 		nrf_simplebyte(0xE1); //Clear TX Fifo
-	
-        digitalWrite(PIN_nCS, LOW); // cbi(PORTB, PIN_nCS);
+
+		digitalWrite(PIN_nCS, LOW); // cbi(PORTB, PIN_nCS);
 		spi_byte(0xA0);
-		for(i = 0 ; i < L ; i++) spi_byte(buf[i]);
-        digitalWrite(PIN_nCS, HIGH); // sbi(PORTB, PIN_nCS);
-	
+		for (i = 0 ; i < L ; i++) spi_byte(buf[i]);
+		digitalWrite(PIN_nCS, HIGH); // sbi(PORTB, PIN_nCS);
+
 		nrf_cmd(0x20, 0x12);	//tx on
-        digitalWrite(PIN_CE, HIGH); // sbi(PORTB, PIN_CE);	 //do tx
+		digitalWrite(PIN_CE, HIGH); // sbi(PORTB, PIN_CE);	 //do tx
 		delay(10);
-        digitalWrite(PIN_CE, LOW); // cbi(PORTB, PIN_CE);	(in preparation of switching to RX quickly)
+		digitalWrite(PIN_CE, LOW); // cbi(PORTB, PIN_CE);	(in preparation of switching to RX quickly)
 		delay(1);
 	}
 }
